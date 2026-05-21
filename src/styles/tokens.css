@@ -7,6 +7,7 @@
   --color-gold: #B8924B;
   --color-gold-soft: #D7B879;
   --color-wine: #7A2E2E;
+  --color-wine-hover: #5E2222;
   --color-border: #E7DDC9;
   --color-shadow: rgba(27, 43, 58, 0.08);
 
@@ -22,6 +23,7 @@
   --color-gold: #B8924B;
   --color-gold-soft: #8A6E3A;
   --color-wine: #7A2E2E;
+  --color-wine-hover: #5E2222;
   --color-border: #3A2F22;
   --color-shadow: rgba(0, 0, 0, 0.4);
 }
