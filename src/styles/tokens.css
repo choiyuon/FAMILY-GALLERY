@@ -1,0 +1,40 @@
+:root {
+  /* Renaissance light palette (spec 2026-05-21 §2) */
+  --color-bg: #F5EFE4;
+  --color-bg-elevated: #FBF6EC;
+  --color-ink: #1B2B3A;
+  --color-ink-muted: #6E5B3F;
+  --color-gold: #B8924B;
+  --color-gold-soft: #D7B879;
+  --color-wine: #7A2E2E;
+  --color-border: #E7DDC9;
+  --color-shadow: rgba(27, 43, 58, 0.08);
+
+  --font-serif: var(--font-cormorant), var(--font-noto-serif-kr), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-theme="dark"] {
+  --color-bg: #1F1A14;
+  --color-bg-elevated: #2A2218;
+  --color-ink: #F5EFE4;
+  --color-ink-muted: #C9A96A;
+  --color-gold: #B8924B;
+  --color-gold-soft: #8A6E3A;
+  --color-wine: #7A2E2E;
+  --color-border: #3A2F22;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}

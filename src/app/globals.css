@@ -1,5 +1,16 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
-:root {
-  color-scheme: light;
+@theme {
+  --color-bg: #F5EFE4;
+  --color-bg-elevated: #FBF6EC;
+  --color-ink: #1B2B3A;
+  --color-ink-muted: #6E5B3F;
+  --color-gold: #B8924B;
+  --color-gold-soft: #D7B879;
+  --color-wine: #7A2E2E;
+  --color-border: #E7DDC9;
+
+  --font-serif: var(--font-cormorant), var(--font-noto-serif-kr), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
 }
