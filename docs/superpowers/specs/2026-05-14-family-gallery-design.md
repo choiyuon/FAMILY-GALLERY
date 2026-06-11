@@ -105,6 +105,7 @@ Neon Postgres        Cloudflare R2
 | r2_medium_key | text NULL | 사진에만 있음 |
 | r2_thumb_key | text | 사진/영상 모두 |
 | r2_edited_key | text NULL | 편집본이 있을 때만 |
+| short_edge_px | integer NOT NULL | 사진/영상 원본의 짧은 변(px). 그리드 호버 캡션 표시 여부 판정 (≥300이면 캡션 노출). 업로드 시 sharp 메타로 계산. |
 | created_at | timestamptz | |
 | deleted_at | timestamptz NULL INDEX | NULL = 갤러리, NOT NULL = 휴지통 |
 | deleted_by | UUID NULL → users.id | |
@@ -262,6 +263,8 @@ app/
 
 ## 9. UI / 디자인 (르네상스 미술관)
 
+> **세부 시각 규칙은 `2026-05-21-design-pattern.md`를 따른다.** 본 절은 토큰 원본과 적용 외 화면(편집·휴지통·관리자·설정)의 기본 분위기만 기술한다.
+
 ### 9.1 색 / 타이포
 
 - 라이트: 베이지 (#F5EFE4), 잉크 다크네이비 (#1B2B3A), 골드 (#B8924B), 와인 (#7A2E2E).
@@ -272,16 +275,14 @@ app/
 
 ### 9.2 장식 요소
 
-- 사진 카드: 1px 골드 보더 + 코너 장식 (CSS gradient + box-shadow) → "액자" 느낌.
-- 그리드 배경: 미세한 종이 텍스처 SVG (~5KB).
-- 라이트박스 배경: 검은 갤러리 벽.
-- FAB: 좌하단 업로드 (골드), 우하단 설정 (반투명 골드 톱니), 상단 휴지통 (반투명 와인레드, admin만).
+- 적용 화면(갤러리·라이트박스·로그인)의 장식 어휘는 `2026-05-21-design-pattern.md` §4를 따른다 (톱바 + 알약 CTA, 큰 세리프 디스플레이, 작은 캡션 라벨, 카테고리 필터 칩).
+- 적용 외 화면(편집 캔버스·휴지통·관리자·설정)은 평이한 폼 카드를 사용한다. 1px 골드 보더와 코너 장식은 사용하지 않는다.
+- 종이 텍스처 SVG 배경은 옵션 — 구현 폴리시 단계에서 도입 여부 결정.
 
 ### 9.3 모바일 우선
 
-- 그리드: 모바일 2열 / 태블릿 3 / 데스크톱 4.
-- 라이트박스: 스와이프가 주, 화살표 키 보조.
-- 설정 패널: 모바일 bottom sheet, 데스크톱 우측 패널.
+- 그리드 컬럼: 모바일 2 / 태블릿 3 / 데스크톱 4 (`2026-05-21-design-pattern.md` §3.1에서 상세).
+- 라이트박스 스택, 칩 가로 스크롤, 톱바 단축 규칙은 디자인 패턴 spec §7 참조.
 - Lighthouse 모바일 90+ 목표 (이미지 lazy load, 코드 스플릿, 폰트 prefetch).
 
 ## 10. 권한 / 인증
@@ -310,6 +311,7 @@ app/
 | 테마 | 라이트 / 다크 토글 | DB `users.theme` + localStorage 캐시. 첫 방문은 `prefers-color-scheme` 감지 |
 | 분류 필터 | 라디오: 전체 / 사진 / 영상 | localStorage + URL `?filter=` |
 | 종료 | `/landing`으로 이동 | 동작만, 저장 없음 |
+| 로그인 배경 사진 사용 | 관리자 전용 토글. OFF면 fallback 정물화 사용 | 새 `settings` 단일 row 테이블 (디자인 패턴 spec §8 참조) |
 
 ## 12. 운영 / 무료 한도
 
