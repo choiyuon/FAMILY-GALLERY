@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
 import { presignGet } from "@/lib/r2/client";
 
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireSession();
   } catch (e) {
