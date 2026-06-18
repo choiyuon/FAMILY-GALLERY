@@ -8,6 +8,7 @@ import { Topbar } from "@/components/design/topbar";
 import { MediaGrid } from "./media-grid";
 import { Lightbox } from "./lightbox";
 import { UploadFab } from "./upload-fab";
+import { SearchBar } from "./search-bar";
 
 export default async function GalleryPage() {
   const session = await auth();
@@ -46,7 +47,7 @@ export default async function GalleryPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
-      <Topbar navItems={navItems} />
+      <Topbar navItems={navItems} cta={<SearchBar />} />
       <Suspense fallback={null}>
         <MediaGrid initialItems={initialItems} initialCursor={initialCursor} />
         <Lightbox />
