@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
-import { r2 } from "@/lib/r2/client";
+import { getR2 } from "@/lib/r2/client";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
 import { writeAudit } from "@/lib/audit/log";
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   let actualShortEdgePx = Math.min(width, height);
 
   if (isPhoto) {
-    const obj = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const obj = await getR2().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const buf = await streamToBuffer(
       obj.Body as unknown as NodeJS.ReadableStream
     );
@@ -92,8 +92,8 @@ export async function POST(req: Request) {
     ]);
 
     await Promise.all([
-      r2.send(new PutObjectCommand({ Bucket: bucket, Key: r2ThumbKey, Body: thumbBuf, ContentType: "image/jpeg" })),
-      r2.send(new PutObjectCommand({ Bucket: bucket, Key: r2MediumKey!, Body: mediumBuf, ContentType: "image/jpeg" })),
+      getR2().send(new PutObjectCommand({ Bucket: bucket, Key: r2ThumbKey, Body: thumbBuf, ContentType: "image/jpeg" })),
+      getR2().send(new PutObjectCommand({ Bucket: bucket, Key: r2MediumKey!, Body: mediumBuf, ContentType: "image/jpeg" })),
     ]);
   }
 
