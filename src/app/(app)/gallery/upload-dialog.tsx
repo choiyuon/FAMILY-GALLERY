@@ -53,7 +53,10 @@ async function extractVideoThumb(
         0.8
       );
     };
-    video.onerror = () => reject(new Error("영상 로드 실패"));
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src);
+      reject(new Error("영상 로드 실패"));
+    };
   });
 }
 
@@ -66,7 +69,10 @@ async function getImageDimensions(
       resolve({ width: img.naturalWidth, height: img.naturalHeight });
       URL.revokeObjectURL(img.src);
     };
-    img.onerror = reject;
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error("이미지 로드 실패"));
+    };
     img.src = URL.createObjectURL(file);
   });
 }
@@ -191,18 +197,36 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         thumbUploadUrl?: string;
       };
 
-      await fetch(uploadUrl, {
+      // PUT original file to R2
+      const putRes = await fetch(uploadUrl, {
         method: "PUT",
         body: entry.file,
         headers: { "content-type": entry.file.type },
       });
+      if (!putRes.ok) {
+        setEntries((prev) =>
+          prev.map((e, i) =>
+            i === idx ? { ...e, uploading: false, error: "파일 업로드에 실패했습니다." } : e
+          )
+        );
+        return;
+      }
 
+      // PUT video thumbnail to R2 (video only)
       if (entry.thumbBlob && thumbUploadUrl) {
-        await fetch(thumbUploadUrl, {
+        const thumbRes = await fetch(thumbUploadUrl, {
           method: "PUT",
           body: entry.thumbBlob,
           headers: { "content-type": "image/jpeg" },
         });
+        if (!thumbRes.ok) {
+          setEntries((prev) =>
+            prev.map((e, i) =>
+              i === idx ? { ...e, uploading: false, error: "썸네일 업로드에 실패했습니다." } : e
+            )
+          );
+          return;
+        }
       }
 
       const completeRes = await fetch("/api/media/upload/complete", {
