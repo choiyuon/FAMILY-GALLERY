@@ -6,6 +6,7 @@ import { media } from "@/lib/db/schema";
 import { presignGet } from "@/lib/r2/client";
 import { Topbar } from "@/components/design/topbar";
 import { MediaGrid } from "./media-grid";
+import { Lightbox } from "./lightbox";
 
 export default async function GalleryPage() {
   const session = await auth();
@@ -45,8 +46,9 @@ export default async function GalleryPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
       <Topbar navItems={navItems} />
-      <Suspense>
+      <Suspense fallback={null}>
         <MediaGrid initialItems={initialItems} initialCursor={initialCursor} />
+        <Lightbox />
       </Suspense>
     </div>
   );
