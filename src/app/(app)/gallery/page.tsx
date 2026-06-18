@@ -7,6 +7,7 @@ import { presignGet } from "@/lib/r2/client";
 import { Topbar } from "@/components/design/topbar";
 import { MediaGrid } from "./media-grid";
 import { Lightbox } from "./lightbox";
+import { UploadFab } from "./upload-fab";
 
 export default async function GalleryPage() {
   const session = await auth();
@@ -50,6 +51,7 @@ export default async function GalleryPage() {
         <MediaGrid initialItems={initialItems} initialCursor={initialCursor} />
         <Lightbox />
       </Suspense>
+      <UploadFab />
     </div>
   );
 }
