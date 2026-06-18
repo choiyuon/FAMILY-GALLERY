@@ -1,8 +1,12 @@
-import { pgTable, pgEnum, uuid, text, timestamp, bigserial, jsonb, index } from "drizzle-orm/pg-core";
+import {
+  pgTable, pgEnum, uuid, text, timestamp,
+  bigserial, jsonb, index, integer, bigint,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const roleEnum = pgEnum("role", ["admin", "member"]);
 export const themeEnum = pgEnum("theme", ["light", "dark"]);
+export const kindEnum = pgEnum("kind", ["photo", "video"]);
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -38,5 +42,34 @@ export const auditLog = pgTable(
   (t) => [
     index("audit_log_actor_idx").on(t.actorId),
     index("audit_log_created_idx").on(t.createdAt),
+  ]
+);
+
+export const media = pgTable(
+  "media",
+  {
+    id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    ownerId: uuid("owner_id").notNull().references(() => users.id),
+    title: text("title").notNull(),
+    titleLower: text("title_lower").notNull().unique(),
+    kind: kindEnum("kind").notNull(),
+    mimeType: text("mime_type").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    durationMs: integer("duration_ms"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    r2OriginalKey: text("r2_original_key").notNull(),
+    r2MediumKey: text("r2_medium_key"),
+    r2ThumbKey: text("r2_thumb_key").notNull(),
+    r2EditedKey: text("r2_edited_key"),
+    shortEdgePx: integer("short_edge_px").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by").references(() => users.id),
+  },
+  (t) => [
+    index("media_owner_idx").on(t.ownerId),
+    index("media_created_idx").on(t.createdAt),
+    index("media_deleted_idx").on(t.deletedAt),
   ]
 );
