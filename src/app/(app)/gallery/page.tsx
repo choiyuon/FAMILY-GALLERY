@@ -1,28 +1,53 @@
-import Link from "next/link";
+import { isNull, desc } from "drizzle-orm";
+import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
+import { getDb } from "@/lib/db/client";
+import { media } from "@/lib/db/schema";
+import { presignGet } from "@/lib/r2/client";
+import { Topbar } from "@/components/design/topbar";
+import { MediaGrid } from "./media-grid";
 
 export default async function GalleryPage() {
   const session = await auth();
   const isAdmin = session?.user.role === "admin";
 
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(media)
+    .where(isNull(media.deletedAt))
+    .orderBy(desc(media.createdAt))
+    .limit(31);
+
+  const hasMore = rows.length > 30;
+  const firstPage = rows.slice(0, 30);
+
+  const initialItems = await Promise.all(
+    firstPage.map(async (row) => ({
+      id: row.id,
+      title: row.title,
+      kind: row.kind as "photo" | "video",
+      thumbUrl: await presignGet(row.r2ThumbKey),
+      width: row.width,
+      height: row.height,
+      shortEdgePx: row.shortEdgePx,
+      durationMs: row.durationMs,
+    }))
+  );
+
+  const initialCursor = hasMore ? firstPage[29].createdAt.toISOString() : null;
+
+  const navItems = [
+    ...(isAdmin ? [{ href: "/admin", label: "관리" }] : []),
+    { href: "/landing", label: "나가기" },
+  ];
+
   return (
-    <main className="min-h-screen p-6">
-      <header className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl">갤러리</h1>
-        <nav className="flex gap-4">
-          {isAdmin && (
-            <Link href="/admin" className="text-[var(--color-gold)] font-serif">
-              관리
-            </Link>
-          )}
-          <Link href="/landing" className="text-[var(--color-ink-muted)] font-serif">
-            나가기
-          </Link>
-        </nav>
-      </header>
-      <p className="text-[var(--color-ink-muted)]">
-        Plan 2에서 그리드와 업로드를 추가합니다.
-      </p>
-    </main>
+    <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
+      <Topbar navItems={navItems} />
+      <Suspense>
+        <MediaGrid initialItems={initialItems} initialCursor={initialCursor} />
+      </Suspense>
+    </div>
   );
 }
