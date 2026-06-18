@@ -22,8 +22,15 @@ export function MediaGrid({ initialItems, initialCursor }: MediaGridProps) {
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
+    // Skip the initial mount — SSR already provided the first page for "all"
+    if (isFirstRender.current && filter === "all") {
+      isFirstRender.current = false;
+      return;
+    }
+    isFirstRender.current = false;
     setLoading(true);
     const url = `/api/media/list?limit=30${filter !== "all" ? `&kind=${filter}` : ""}`;
     fetch(url)
