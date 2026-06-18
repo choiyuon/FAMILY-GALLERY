@@ -14,19 +14,37 @@ export function SearchBar() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (abortRef.current) abortRef.current.abort();
+
     if (!query.trim()) {
       setResults([]);
-      return;
+      return () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
     }
-    if (timerRef.current) clearTimeout(timerRef.current);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     timerRef.current = setTimeout(async () => {
-      const res = await fetch(`/api/media/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) setResults(await res.json());
+      try {
+        const res = await fetch(
+          `/api/media/search?q=${encodeURIComponent(query)}`,
+          { signal: controller.signal }
+        );
+        if (res.ok) setResults(await res.json());
+      } catch {
+        // aborted or network error — silently ignore for dropdown UX
+      }
     }, 300);
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      controller.abort();
     };
   }, [query]);
 
@@ -49,7 +67,7 @@ export function SearchBar() {
         className="w-40 md:w-56 text-xs px-3 py-1.5 border border-[var(--color-border)] bg-[var(--color-bg-elevated)] rounded-full placeholder:text-[var(--color-ink-muted)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-gold)]"
       />
       {open && results.length > 0 && (
-        <div className="absolute top-full mt-1 right-0 w-64 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] shadow-[var(--color-shadow)] rounded z-50 max-h-60 overflow-y-auto">
+        <div className="absolute top-full mt-1 right-0 w-64 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] shadow-md rounded z-50 max-h-60 overflow-y-auto">
           {results.map((r) => (
             <button
               key={r.id}
