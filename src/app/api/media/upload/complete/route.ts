@@ -6,7 +6,6 @@ import { media } from "@/lib/db/schema";
 import { writeAudit } from "@/lib/audit/log";
 import { isTitleTaken } from "@/lib/media/title";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import type { StreamingBlobPayloadOutputTypes } from "@smithy/types";
 import sharp from "sharp";
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
