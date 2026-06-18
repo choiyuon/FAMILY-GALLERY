@@ -21,17 +21,28 @@ export function Lightbox() {
   const photoId = searchParams.get("photo");
   const [detail, setDetail] = useState<MediaDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!photoId) {
       setDetail(null);
       return;
     }
+    setError(false);
     setLoading(true);
     fetch(`/api/media/${photoId}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) {
+          setError(true);
+          return null;
+        }
+        return r.json();
+      })
       .then(setDetail)
-      .catch(() => setDetail(null))
+      .catch(() => {
+        setError(true);
+        setDetail(null);
+      })
       .finally(() => setLoading(false));
   }, [photoId]);
 
@@ -54,18 +65,23 @@ export function Lightbox() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-[var(--color-overlay)] flex items-center justify-center"
       onClick={close}
     >
       <button
-        className="absolute top-4 right-4 text-white text-2xl leading-none p-2"
-        onClick={close}
+        className="absolute top-4 right-4 text-[var(--color-overlay-fg)] text-2xl leading-none p-2"
+        onClick={(e) => { e.stopPropagation(); close(); }}
         aria-label="닫기"
       >
         ×
       </button>
       {loading && (
-        <div className="text-white font-serif text-lg">불러오는 중...</div>
+        <div className="text-[var(--color-overlay-fg)] font-sans text-lg">불러오는 중...</div>
+      )}
+      {error && !loading && !detail && (
+        <div className="text-[var(--color-overlay-fg)] font-sans text-sm">
+          네트워크 오류 또는 삭제된 미디어입니다.
+        </div>
       )}
       {detail && !loading && (
         <div
@@ -87,9 +103,10 @@ export function Lightbox() {
               controls
               className="max-h-[80vh] max-w-full"
               autoPlay
+              muted
             />
           )}
-          <p className="text-white font-serif italic text-sm">{detail.title}</p>
+          <p className="text-[var(--color-overlay-fg)] font-serif italic text-sm">{detail.title}</p>
         </div>
       )}
     </div>

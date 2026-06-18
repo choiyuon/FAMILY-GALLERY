@@ -10,6 +10,8 @@
   --color-wine-hover: #5E2222;
   --color-border: #E7DDC9;
   --color-shadow: rgba(27, 43, 58, 0.08);
+  --color-overlay: rgba(0, 0, 0, 0.85);
+  --color-overlay-fg: #FFFFFF;
 
   --font-serif: var(--font-cormorant), var(--font-noto-serif-kr), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter), var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
