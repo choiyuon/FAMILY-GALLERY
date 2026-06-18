@@ -6,7 +6,7 @@ export const testSql: RawSql = async (strings, ...values) =>
   (await getSql())(strings, ...values);
 
 export async function truncateAll() {
-  await testSql`TRUNCATE TABLE audit_log, invites, users RESTART IDENTITY CASCADE`;
+  await testSql`TRUNCATE TABLE audit_log, media, invites, users RESTART IDENTITY CASCADE`;
 }
 
 export async function insertTestUser(
