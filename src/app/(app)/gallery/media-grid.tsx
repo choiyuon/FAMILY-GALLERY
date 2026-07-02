@@ -23,6 +23,12 @@ export function MediaGrid({ initialItems, initialCursor }: MediaGridProps) {
   const [loading, setLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
+  const loadingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     // Skip the initial mount — SSR already provided the first page for "all"
@@ -31,15 +37,27 @@ export function MediaGrid({ initialItems, initialCursor }: MediaGridProps) {
       return;
     }
     isFirstRender.current = false;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     const url = `/api/media/list?limit=30${filter !== "all" ? `&kind=${filter}` : ""}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then(({ items: newItems, cursor: newCursor }: { items: MediaTileData[]; cursor: string | null }) => {
+    (async () => {
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        const { items: newItems, cursor: newCursor }: { items: MediaTileData[]; cursor: string | null } = await res.json();
         setItems(newItems);
         setCursor(newCursor);
-      })
-      .finally(() => setLoading(false));
+      } catch {
+        // aborted (superseded by a newer filter change) or network error
+      } finally {
+        if (abortRef.current === controller) setLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
   }, [filter]);
 
   useEffect(() => {
@@ -48,22 +66,32 @@ export function MediaGrid({ initialItems, initialCursor }: MediaGridProps) {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (!entries[0].isIntersecting || loading || !cursor) return;
+        if (!entries[0].isIntersecting || loadingRef.current || !cursor) return;
+
+        abortRef.current?.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         setLoading(true);
         const url = `/api/media/list?limit=30&cursor=${cursor}${filter !== "all" ? `&kind=${filter}` : ""}`;
-        fetch(url)
-          .then((r) => r.json())
-          .then(({ items: newItems, cursor: newCursor }: { items: MediaTileData[]; cursor: string | null }) => {
+        (async () => {
+          try {
+            const res = await fetch(url, { signal: controller.signal });
+            const { items: newItems, cursor: newCursor }: { items: MediaTileData[]; cursor: string | null } = await res.json();
             setItems((prev) => [...prev, ...newItems]);
             setCursor(newCursor);
-          })
-          .finally(() => setLoading(false));
+          } catch {
+            // aborted (superseded by a filter change) or network error
+          } finally {
+            if (abortRef.current === controller) setLoading(false);
+          }
+        })();
       },
       { rootMargin: "300px" }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [cursor, filter, loading]);
+  }, [cursor, filter]);
 
   return (
     <>
