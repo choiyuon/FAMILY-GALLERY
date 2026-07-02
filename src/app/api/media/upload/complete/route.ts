@@ -65,6 +65,24 @@ export async function POST(req: Request) {
   let actualHeight = height;
   let actualShortEdgePx = Math.min(width, height);
 
+  if (!isPhoto) {
+    // Fix 4: [MEDIUM] Server-side sniff MIME for videos — mirrors the photo
+    // branch below. Only reads the first few KB (Range GET) since magic bytes
+    // for mp4/mov/webm all sit near the start of the file.
+    const head = await getR2().send(
+      new GetObjectCommand({ Bucket: bucket, Key: key, Range: "bytes=0-4099" })
+    );
+    const headBuf = await streamToBuffer(head.Body as unknown as NodeJS.ReadableStream);
+
+    const { fileTypeFromBuffer } = await import("file-type");
+    const sniffed = await fileTypeFromBuffer(headBuf);
+    const ALLOWED_VIDEO_MIME = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+    if (!sniffed || !ALLOWED_VIDEO_MIME.has(sniffed.mime)) {
+      return NextResponse.json({ error: "지원하지 않는 파일 형식입니다." }, { status: 400 });
+    }
+    actualMimeType = sniffed.mime;
+  }
+
   if (isPhoto) {
     const obj = await getR2().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const buf = await streamToBuffer(
