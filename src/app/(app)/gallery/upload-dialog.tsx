@@ -121,7 +121,7 @@ function FullscreenPreview({ url, onClose }: { url: string; onClose: () => void 
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center overflow-hidden select-none"
+      className="fixed inset-0 z-[60] bg-[var(--color-overlay)] flex items-center justify-center overflow-hidden select-none"
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
@@ -133,8 +133,8 @@ function FullscreenPreview({ url, onClose }: { url: string; onClose: () => void 
     >
       <button
         onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="cursor-pointer absolute top-4 right-4 z-10 flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-sans px-3 py-1.5 rounded-full border border-white/30 hover:border-white/60 transition-colors"
-        aria-label="이전으로"
+        className="cursor-pointer absolute top-4 right-4 z-10 flex items-center gap-1.5 text-[var(--color-overlay-fg)]/80 hover:text-[var(--color-overlay-fg)] text-sm font-sans px-3 py-1.5 rounded-full border border-[var(--color-overlay-fg)]/30 hover:border-[var(--color-overlay-fg)]/60 transition-colors"
+        aria-label="닫기"
       >
         ← 이전
       </button>
@@ -481,7 +481,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
             >
               {entry.previewUrl && (
                 <div
-                  className="cursor-pointer w-full h-48 bg-black flex items-center justify-center"
+                  className="cursor-pointer w-full h-48 bg-[var(--color-overlay)] flex items-center justify-center"
                   onClick={() => setExpandedPreview(entry.previewUrl!)}
                 >
                   <img

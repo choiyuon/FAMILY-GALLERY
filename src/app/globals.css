@@ -2,16 +2,11 @@
 @import "../styles/tokens.css";
 
 @theme {
-  --color-bg: #F5EFE4;
-  --color-bg-elevated: #FBF6EC;
-  --color-ink: #1B2B3A;
-  --color-ink-muted: #6E5B3F;
-  --color-gold: #B8924B;
-  --color-gold-soft: #D7B879;
-  --color-wine: #7A2E2E;
-  --color-wine-hover: #5E2222;
-  --color-border: #E7DDC9;
-
+  /* Color tokens live only in tokens.css (:root + [data-theme="dark"]) —
+     they're consumed via var(--color-*) everywhere, never as generated
+     Tailwind utilities, so they don't belong here. Font tokens DO need to
+     be here: Tailwind's font-serif/font-sans utility classes read from
+     @theme, not from plain :root custom properties. */
   --font-serif: var(--font-cormorant), var(--font-noto-serif-kr), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter), var(--font-pretendard), ui-sans-serif, system-ui, sans-serif;
 }

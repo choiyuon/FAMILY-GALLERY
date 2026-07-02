@@ -12,7 +12,7 @@ export default async function LandingPage() {
       <div className="flex gap-4">
         <Link
           href="/gallery"
-          className="bg-[var(--color-gold)] text-white font-serif px-6 py-3 rounded"
+          className="bg-[var(--color-gold)] text-[var(--color-bg)] font-serif px-6 py-3 rounded"
         >
           갤러리 들어가기
         </Link>

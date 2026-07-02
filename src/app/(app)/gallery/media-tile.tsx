@@ -35,15 +35,15 @@ export function MediaTile({ item }: { item: MediaTileData }) {
       />
       {item.kind === "video" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="white">
+          <div className="w-10 h-10 rounded-full bg-[var(--color-overlay)] flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 16 16" className="fill-[var(--color-overlay-fg)]">
               <polygon points="5,3 13,8 5,13" />
             </svg>
           </div>
         </div>
       )}
       {item.shortEdgePx >= 300 && (
-        <span className="tile-cap absolute bottom-0 left-0 right-0 px-3 py-2 text-xs italic font-serif text-white opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/60 to-transparent hidden md:block">
+        <span className="tile-cap absolute bottom-0 left-0 right-0 px-3 py-2 text-xs italic font-serif text-[var(--color-overlay-fg)] opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-[var(--color-overlay)] to-transparent hidden md:block">
           {item.title}
         </span>
       )}
