@@ -165,6 +165,7 @@ async function extractVideoThumb(
       const MAX_MS =
         Number(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_MS) || 5 * 60 * 1000;
       if (video.duration * 1000 > MAX_MS) {
+        URL.revokeObjectURL(video.src);
         reject(new Error(`영상은 최대 ${MAX_MS / 60000}분입니다.`));
         return;
       }
@@ -175,6 +176,7 @@ async function extractVideoThumb(
       canvas.toBlob(
         (blob) => {
           if (!blob) {
+            URL.revokeObjectURL(video.src);
             reject(new Error("썸네일 생성 실패"));
             return;
           }
