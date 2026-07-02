@@ -28,7 +28,7 @@ export function CreateInviteButton() {
       <button
         onClick={create}
         disabled={loading}
-        className="bg-[var(--color-gold)] text-white font-serif px-4 py-2 rounded disabled:opacity-50 self-start"
+        className="cursor-pointer bg-[var(--color-gold)] text-white font-serif px-4 py-2 rounded disabled:opacity-50 disabled:cursor-default self-start"
       >
         {loading ? "발급 중..." : "초대 발급"}
       </button>

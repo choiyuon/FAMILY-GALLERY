@@ -69,7 +69,7 @@ export function Lightbox() {
       onClick={close}
     >
       <button
-        className="absolute top-4 right-4 text-[var(--color-overlay-fg)] text-2xl leading-none p-2"
+        className="cursor-pointer absolute top-4 right-4 text-[var(--color-overlay-fg)] text-2xl leading-none p-2"
         onClick={(e) => { e.stopPropagation(); close(); }}
         aria-label="닫기"
       >

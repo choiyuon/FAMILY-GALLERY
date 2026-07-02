@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface FileEntry {
@@ -11,9 +11,146 @@ interface FileEntry {
   uploading: boolean;
   done: boolean;
   thumbBlob?: Blob;
+  previewUrl?: string;
   width: number;
   height: number;
   durationMs?: number;
+}
+
+function FullscreenPreview({ url, onClose }: { url: string; onClose: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef(1);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const pinchRef = useRef<{ dist: number; cx: number; cy: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [, repaint] = useState(0);
+
+  const forceRepaint = useCallback(() => repaint((n) => n + 1), []);
+
+  const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const px = clientX - (rect.left + rect.width / 2);
+    const py = clientY - (rect.top + rect.height / 2);
+    const next = Math.max(1, Math.min(8, scaleRef.current * factor));
+    const f = next / scaleRef.current;
+    scaleRef.current = next;
+    offsetRef.current = next === 1
+      ? { x: 0, y: 0 }
+      : { x: px - (px - offsetRef.current.x) * f, y: py - (py - offsetRef.current.y) * f };
+    forceRepaint();
+  }, [forceRepaint]);
+
+  // non-passive wheel + touchmove so preventDefault works
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomAt(e.clientX, e.clientY, 1 - e.deltaY * 0.001);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 2 && pinchRef.current) {
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        const newDist = Math.hypot(dx, dy);
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        zoomAt(cx, cy, newDist / pinchRef.current.dist);
+        pinchRef.current = { dist: newDist, cx, cy };
+      } else if (e.touches.length === 1 && dragRef.current) {
+        offsetRef.current = {
+          x: dragRef.current.ox + (e.touches[0].clientX - dragRef.current.sx),
+          y: dragRef.current.oy + (e.touches[0].clientY - dragRef.current.sy),
+        };
+        forceRepaint();
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [zoomAt, forceRepaint]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function onMouseDown(e: React.MouseEvent) {
+    if (scaleRef.current <= 1) return;
+    e.preventDefault();
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: offsetRef.current.x, oy: offsetRef.current.y };
+    setIsDragging(true);
+  }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!dragRef.current) return;
+    offsetRef.current = {
+      x: dragRef.current.ox + (e.clientX - dragRef.current.sx),
+      y: dragRef.current.oy + (e.clientY - dragRef.current.sy),
+    };
+    forceRepaint();
+  }
+  function onMouseUp() { dragRef.current = null; setIsDragging(false); }
+
+  function onDoubleClick(e: React.MouseEvent) {
+    if (scaleRef.current > 1) { scaleRef.current = 1; offsetRef.current = { x: 0, y: 0 }; forceRepaint(); }
+    else zoomAt(e.clientX, e.clientY, 2.5);
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 2) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      pinchRef.current = { dist: Math.hypot(dx, dy), cx: (e.touches[0].clientX + e.touches[1].clientX) / 2, cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+      dragRef.current = null;
+    } else if (e.touches.length === 1) {
+      dragRef.current = { sx: e.touches[0].clientX, sy: e.touches[0].clientY, ox: offsetRef.current.x, oy: offsetRef.current.y };
+    }
+  }
+  function onTouchEnd() { pinchRef.current = null; dragRef.current = null; }
+
+  const scale = scaleRef.current;
+  const { x, y } = offsetRef.current;
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center overflow-hidden select-none"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onDoubleClick={onDoubleClick}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={{ cursor: isDragging ? "grabbing" : scale > 1 ? "grab" : "default" }}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        className="cursor-pointer absolute top-4 right-4 z-10 flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-sans px-3 py-1.5 rounded-full border border-white/30 hover:border-white/60 transition-colors"
+        aria-label="이전으로"
+      >
+        ← 이전
+      </button>
+      <img
+        src={url}
+        alt="미리보기"
+        className="max-w-[92vw] max-h-[92vh] object-contain pointer-events-none"
+        style={{
+          transform: `translate(${x}px, ${y}px) scale(${scale})`,
+          transformOrigin: "center center",
+          willChange: "transform",
+        }}
+        draggable={false}
+      />
+    </div>
+  );
 }
 
 async function extractVideoThumb(
@@ -81,6 +218,13 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      previewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
 
   async function onFiles(files: FileList | null) {
     if (!files) return;
@@ -116,6 +260,10 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         });
         continue;
       }
+      const previewUrl = isVideo && thumbBlob
+        ? URL.createObjectURL(thumbBlob)
+        : URL.createObjectURL(file);
+      previewUrlsRef.current.push(previewUrl);
       newEntries.push({
         file,
         title: file.name.replace(/\.[^.]+$/, ""),
@@ -124,6 +272,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         uploading: false,
         done: false,
         thumbBlob,
+        previewUrl,
         width,
         height,
         durationMs,
@@ -284,7 +433,13 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
   const hasErrors = entries.some((e) => e.error);
   const anyUploading = entries.some((e) => e.uploading);
 
+  const [expandedPreview, setExpandedPreview] = useState<string | null>(null);
+
   return (
+    <>
+    {expandedPreview && (
+      <FullscreenPreview url={expandedPreview} onClose={() => setExpandedPreview(null)} />
+    )}
     <div className="fixed inset-0 z-50 bg-[var(--color-overlay)] flex items-end md:items-center justify-center p-4">
       <div
         className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] w-full max-w-lg max-h-[80vh] flex flex-col rounded-t-2xl md:rounded-2xl overflow-hidden"
@@ -294,7 +449,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
           <h2 className="font-serif text-lg text-[var(--color-ink)]">업로드</h2>
           <button
             onClick={onClose}
-            className="text-[var(--color-ink-muted)] text-xl leading-none"
+            className="cursor-pointer text-[var(--color-ink-muted)] text-xl leading-none"
             aria-label="닫기"
           >
             ×
@@ -304,7 +459,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
           <button
             onClick={() => inputRef.current?.click()}
-            className="border-2 border-dashed border-[var(--color-border)] rounded-lg p-6 text-center text-[var(--color-ink-muted)] font-sans hover:border-[var(--color-gold)] transition-colors"
+            className="cursor-pointer border-2 border-dashed border-[var(--color-border)] rounded-lg p-6 text-center text-[var(--color-ink-muted)] font-sans hover:border-[var(--color-gold)] transition-colors"
           >
             + 파일 선택 (이미지 / 영상)
           </button>
@@ -320,43 +475,58 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
           {entries.map((entry, idx) => (
             <div
               key={idx}
-              className="border border-[var(--color-border)] rounded-lg p-3 flex flex-col gap-2"
+              className="border border-[var(--color-border)] rounded-lg overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-[var(--color-ink-muted)] truncate flex-1">
-                  {entry.file.name}
-                </span>
-                {entry.done && (
-                  <span className="text-xs text-[var(--color-gold)]">완료</span>
-                )}
-                {entry.uploading && (
-                  <span className="text-xs text-[var(--color-ink-muted)]">올리는 중...</span>
-                )}
-              </div>
-              <input
-                type="text"
-                value={entry.title}
-                onChange={(e) => setTitle(idx, e.target.value)}
-                disabled={entry.done || entry.uploading}
-                placeholder="이름"
-                className="border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1.5 text-sm rounded text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)]"
-              />
-              {entry.error && (
-                <p className="text-xs text-[var(--color-wine)]">{entry.error}</p>
-              )}
-              {entry.suggestions.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {entry.suggestions.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => pickSuggestion(idx, s)}
-                      className="text-xs border border-[var(--color-gold-soft)] rounded-full px-2 py-1 text-[var(--color-gold)] hover:bg-[var(--color-gold-soft)] hover:text-[var(--color-overlay-fg)] transition-colors"
-                    >
-                      {s}
-                    </button>
-                  ))}
+              {entry.previewUrl && (
+                <div
+                  className="cursor-pointer w-full h-48 bg-black flex items-center justify-center"
+                  onClick={() => setExpandedPreview(entry.previewUrl!)}
+                >
+                  <img
+                    src={entry.previewUrl}
+                    alt={entry.title}
+                    className="max-w-full max-h-full object-contain"
+                    style={{ imageRendering: "auto" }}
+                  />
                 </div>
               )}
+              <div className="flex-1 flex flex-col gap-2 min-w-0 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--color-ink-muted)] truncate flex-1">
+                    {entry.file.name}
+                  </span>
+                  {entry.done && (
+                    <span className="text-xs text-[var(--color-gold)]">완료</span>
+                  )}
+                  {entry.uploading && (
+                    <span className="text-xs text-[var(--color-ink-muted)]">올리는 중...</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={entry.title}
+                  onChange={(e) => setTitle(idx, e.target.value)}
+                  disabled={entry.done || entry.uploading}
+                  placeholder="이름"
+                  className="border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-1.5 text-sm rounded text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)]"
+                />
+                {entry.error && (
+                  <p className="text-xs text-[var(--color-wine)]">{entry.error}</p>
+                )}
+                {entry.suggestions.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {entry.suggestions.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => pickSuggestion(idx, s)}
+                        className="cursor-pointer text-xs border border-[var(--color-gold-soft)] rounded-full px-2 py-1 text-[var(--color-gold)] hover:bg-[var(--color-gold-soft)] hover:text-[var(--color-overlay-fg)] transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -366,7 +536,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
             {allDone ? (
               <button
                 onClick={onDoneClose}
-                className="w-full bg-[var(--color-ink)] text-[var(--color-overlay-fg)] font-sans py-2.5 rounded"
+                className="cursor-pointer w-full bg-[var(--color-ink)] text-[var(--color-overlay-fg)] font-sans py-2.5 rounded"
               >
                 완료
               </button>
@@ -374,7 +544,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
               <button
                 onClick={uploadAll}
                 disabled={hasErrors || anyUploading}
-                className="w-full bg-[var(--color-gold)] text-[var(--color-overlay-fg)] font-sans py-2.5 rounded disabled:opacity-50"
+                className="cursor-pointer w-full bg-[var(--color-gold)] text-[var(--color-overlay-fg)] font-sans py-2.5 rounded disabled:opacity-50 disabled:cursor-default"
               >
                 {anyUploading ? "올리는 중..." : "올리기"}
               </button>
@@ -383,5 +553,6 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+    </>
   );
 }

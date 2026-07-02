@@ -17,7 +17,7 @@ export function ChipRow({ items, activeId, onSelect }: ChipRowProps) {
       {items.map((item) => {
         const active = item.id === activeId;
         const base =
-          "shrink-0 rounded-full px-3 py-1.5 text-[10px] tracking-[0.12em] uppercase transition-colors";
+          "cursor-pointer shrink-0 rounded-full px-3 py-1.5 text-[10px] tracking-[0.12em] uppercase transition-colors";
         const tone = active
           ? "bg-[var(--color-ink)] text-[var(--color-bg)] border border-[var(--color-ink)]"
           : "border border-[var(--color-border)] text-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)]";

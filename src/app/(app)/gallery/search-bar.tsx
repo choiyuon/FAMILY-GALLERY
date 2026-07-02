@@ -72,7 +72,7 @@ export function SearchBar() {
             <button
               key={r.id}
               onMouseDown={() => onSelect(r.id)}
-              className="w-full text-left px-3 py-2 text-sm font-sans text-[var(--color-ink)] hover:bg-[var(--color-bg)] flex items-center gap-2 border-b border-[var(--color-border)] last:border-0"
+              className="cursor-pointer w-full text-left px-3 py-2 text-sm font-sans text-[var(--color-ink)] hover:bg-[var(--color-bg)] flex items-center gap-2 border-b border-[var(--color-border)] last:border-0"
             >
               {r.title}
             </button>
