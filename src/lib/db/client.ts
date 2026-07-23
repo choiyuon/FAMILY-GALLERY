@@ -4,11 +4,55 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
 
 // Driver selection:
-//  - DATABASE_URL set to a real Postgres → Neon serverless (production / Vercel).
+//  - a real Postgres URL → Neon serverless (production / Vercel).
 //  - otherwise → local in-memory PGlite, migrated + seeded at boot (no external DB).
 // To connect Neon later, just set DATABASE_URL in .env.local — no code change.
-const databaseUrl = process.env.DATABASE_URL?.trim();
-const useRemote = !!databaseUrl && !databaseUrl.includes("ep-xxx");
+//
+// Under Vitest the URL comes from TEST_DATABASE_URL and NEVER from DATABASE_URL:
+// the suite calls truncateAll(), so falling back to DATABASE_URL would wipe the
+// production database. With TEST_DATABASE_URL unset, tests get their own
+// throwaway PGlite instance instead.
+export function resolveDatabaseUrl(
+  env: Record<string, string | undefined> = process.env
+): string | undefined {
+  const url = (env.VITEST ? env.TEST_DATABASE_URL : env.DATABASE_URL)?.trim();
+  if (!url) return undefined;
+  if (url.includes("ep-xxx")) return undefined; // .env.example placeholder
+  if (env.VITEST && url === env.DATABASE_URL?.trim()) {
+    throw new Error(
+      "TEST_DATABASE_URL is the same as DATABASE_URL. Tests truncate every " +
+        "table — point TEST_DATABASE_URL at a separate database branch, or " +
+        "unset it to run against the in-memory PGlite backend."
+    );
+  }
+  return url;
+}
+
+// Playwright drives the dev server in a separate process, so the per-process
+// PGlite instance cannot be shared. E2E therefore needs a real database and
+// truncates it — which makes an explicit, non-production URL mandatory.
+export function resolveE2eDatabaseUrl(
+  env: Record<string, string | undefined> = process.env
+): string {
+  const url = env.TEST_DATABASE_URL?.trim();
+  if (!url) {
+    throw new Error(
+      "E2E tests need TEST_DATABASE_URL (in-memory PGlite cannot be shared " +
+        "across processes). Point it at a throwaway database branch — these " +
+        "tests truncate every table."
+    );
+  }
+  if (url === env.DATABASE_URL?.trim()) {
+    throw new Error(
+      "TEST_DATABASE_URL is the same as DATABASE_URL. E2E tests truncate " +
+        "every table — point TEST_DATABASE_URL at a separate database branch."
+    );
+  }
+  return url;
+}
+
+const databaseUrl = resolveDatabaseUrl();
+const useRemote = !!databaseUrl;
 
 export type Db = PgliteDatabase<typeof schema>;
 

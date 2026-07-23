@@ -1,17 +1,13 @@
 import { neon } from "@neondatabase/serverless";
 import { hashPassword } from "../../src/lib/auth/password";
+import { resolveE2eDatabaseUrl } from "../../src/lib/db/client";
 
 // NOTE: E2E runs in a separate process from the dev server, so it cannot share
 // the in-memory PGlite database. These tests require a real shared DB — set
-// DATABASE_URL (a throwaway Neon branch) before running `npm run test:e2e`.
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "E2E tests need a shared database. Set DATABASE_URL to a Neon branch in .env.local " +
-      "(in-memory PGlite cannot be shared across processes)."
-  );
-}
-
-const sql = neon(process.env.DATABASE_URL);
+// TEST_DATABASE_URL to a throwaway Neon branch before running `npm run test:e2e`.
+// resolveE2eDatabaseUrl() refuses DATABASE_URL, because resetTestUsers()
+// truncates every table it touches.
+const sql = neon(resolveE2eDatabaseUrl());
 
 export async function resetTestUsers() {
   await sql`TRUNCATE TABLE audit_log, invites, users RESTART IDENTITY CASCADE`;

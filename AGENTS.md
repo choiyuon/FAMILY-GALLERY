@@ -101,7 +101,10 @@ App Router 코드 작성 전, 해당하는 경우 `node_modules/next/dist/docs/0
 
 Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 사용." 즉:
 
-- DB 클라이언트를 mock하지 마라. `TEST_DATABASE_URL`(없으면 `DATABASE_URL`) 환경변수의 실제 Neon 인스턴스를 사용.
+- DB 클라이언트를 mock하지 마라. 테스트 DB는 `src/lib/db/client.ts`의 `resolveDatabaseUrl()`이 고른다:
+  - `TEST_DATABASE_URL`이 있으면 그 Neon 인스턴스를 쓴다 (별도 브랜치여야 함).
+  - 없으면 in-memory PGlite로 폴백한다. PGlite는 WASM으로 컴파일된 **진짜 Postgres**이고 같은 마이그레이션을 적용하므로 mock이 아니다.
+  - **`DATABASE_URL`로는 절대 폴백하지 않는다.** 그건 프로덕션 DB이고 `truncateAll()`이 통째로 지운다. `TEST_DATABASE_URL`을 `DATABASE_URL`과 같은 값으로 두면 `resolveDatabaseUrl()`이 예외를 던진다.
 - 매 테스트 전 `tests/helpers/db.ts`의 `truncateAll()`로 초기화.
 - 권한 가드 테스트는 진짜 user row를 만들어서 진짜 세션으로 호출. 가짜 세션 객체를 함수에 직접 주입하는 식의 검사는 의미 없음.
 
