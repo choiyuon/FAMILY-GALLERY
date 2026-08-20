@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { eq, and, isNull } from "drizzle-orm";
-import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
+import {
+  ForbiddenError,
+  requireAdmin,
+  requireSession,
+  UnauthorizedError,
+} from "@/lib/auth/guard";
+import { writeAudit } from "@/lib/audit/log";
+import { softDeleteMedia } from "@/lib/media/trash";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
 import { presignGet } from "@/lib/storage/blob";
@@ -31,4 +38,32 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   ]);
 
   return NextResponse.json({ ...row, thumbUrl, displayUrl, originalUrl });
+}
+
+// Members cannot delete (spec §2: "멤버는 삭제·휴지통 접근 불가").
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  let session;
+  try {
+    session = await requireAdmin();
+  } catch (e) {
+    if (e instanceof UnauthorizedError) return new NextResponse("Unauthorized", { status: 401 });
+    if (e instanceof ForbiddenError) return new NextResponse("Forbidden", { status: 403 });
+    throw e;
+  }
+
+  const { id } = await params;
+  const row = await softDeleteMedia(id, session.user.id);
+  if (!row) return new NextResponse("Not Found", { status: 404 });
+
+  await writeAudit({
+    actorId: session.user.id,
+    action: "delete",
+    targetMediaId: row.id,
+    metadata: { title: row.title },
+  });
+
+  return NextResponse.json({ id: row.id });
 }

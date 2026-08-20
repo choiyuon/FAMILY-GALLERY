@@ -26,7 +26,7 @@ export default async function GalleryPage() {
   const isAdmin = session?.user.role === "admin";
 
   const navItems = [
-    ...(isAdmin ? [{ href: "/admin", label: "관리" }] : []),
+    ...(isAdmin ? [{ href: "/trash", label: "휴지통" }, { href: "/admin", label: "관리" }] : []),
     { href: "/landing", label: "나가기" },
   ];
 
@@ -38,7 +38,7 @@ export default async function GalleryPage() {
         <Topbar navItems={navItems} cta={<SearchBar />} />
         <Suspense fallback={null}>
           <MediaGrid initialItems={MOCK_ITEMS} initialCursor={null} />
-          <Lightbox />
+          <Lightbox isAdmin={isAdmin} />
         </Suspense>
         <UploadFab />
       </div>
@@ -76,7 +76,7 @@ export default async function GalleryPage() {
       <Topbar navItems={navItems} cta={<SearchBar />} />
       <Suspense fallback={null}>
         <MediaGrid initialItems={initialItems} initialCursor={initialCursor} />
-        <Lightbox />
+        <Lightbox isAdmin={isAdmin} />
       </Suspense>
       <UploadFab />
     </div>
