@@ -34,3 +34,15 @@ describe("writeAudit", () => {
     expect(rows[0].target_media_id).toBeNull();
   });
 });
+
+describe("system actions", () => {
+  it("records an action with no human actor, so the cron can be audited too", async () => {
+    await writeAudit({ action: "trash_purge", metadata: { purged: 3 } });
+
+    const rows = await testSql`SELECT actor_id, action, metadata FROM audit_log`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].actor_id).toBeNull();
+    expect(rows[0].action).toBe("trash_purge");
+    expect(rows[0].metadata).toEqual({ purged: 3 });
+  });
+});

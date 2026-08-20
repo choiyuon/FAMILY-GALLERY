@@ -6,11 +6,14 @@ export type AuditAction =
   | "invite_redeem"
   | "login"
   | "role_change"
-  // Plan 2/3/4 actions appear later but the type is permissive
+  | "trash_purge"
+  | "orphan_sweep"
+  // Plan 3/4 actions appear later but the type is permissive
   | (string & {});
 
 export interface AuditEntry {
-  actorId: string;
+  /** Omit for actions the system takes on its own, such as the cleanup cron. */
+  actorId?: string | null;
   action: AuditAction;
   targetMediaId?: string;
   targetUserId?: string;
@@ -20,7 +23,7 @@ export interface AuditEntry {
 export async function writeAudit(entry: AuditEntry): Promise<void> {
   const db = await getDb();
   await db.insert(auditLog).values({
-    actorId: entry.actorId,
+    actorId: entry.actorId ?? null,
     action: entry.action,
     targetMediaId: entry.targetMediaId,
     targetUserId: entry.targetUserId,

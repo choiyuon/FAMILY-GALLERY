@@ -29,6 +29,13 @@
       "when": 1787221504342,
       "tag": "0003_redundant_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787223621637,
+      "tag": "0004_majestic_puppet_master",
+      "breakpoints": true
     }
   ]
 }

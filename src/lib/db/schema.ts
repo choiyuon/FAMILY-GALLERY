@@ -32,7 +32,8 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
-    actorId: uuid("actor_id").notNull().references(() => users.id),
+    // NULL means the platform itself acted (the daily cleanup cron), not a person.
+    actorId: uuid("actor_id").references(() => users.id),
     action: text("action").notNull(),
     targetMediaId: uuid("target_media_id"),
     targetUserId: uuid("target_user_id"),
