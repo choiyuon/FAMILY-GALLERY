@@ -348,7 +348,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         thumbUploadUrl?: string;
       };
 
-      // PUT original file to R2
+      // PUT original file straight to the Blob store
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         body: entry.file,
@@ -363,7 +363,7 @@ export function UploadDialog({ onClose }: { onClose: () => void }) {
         return;
       }
 
-      // PUT video thumbnail to R2 (video only)
+      // PUT the extracted video frame (video only); the server re-encodes it to WebP
       if (entry.thumbBlob && thumbUploadUrl) {
         const thumbRes = await fetch(thumbUploadUrl, {
           method: "PUT",

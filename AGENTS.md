@@ -16,7 +16,7 @@
 | ORM (예정) | Drizzle + `@neondatabase/serverless` | Plan 1 Task 3~4 |
 | Auth (예정) | Auth.js v5 (`next-auth@beta`) Credentials + JWT | Plan 1 Task 7~9 |
 | Password (예정) | Argon2id via `@node-rs/argon2` | bcrypt/scrypt 금지 |
-| 객체 스토리지 | Cloudflare R2 (S3 호환) | Plan 2 |
+| 객체 스토리지 | **Vercel Blob** (private store, `@vercel/blob` >= 2.3) | R2에서 교체됨. S3 SDK 쓰지 마라 |
 | 호스팅 | Vercel Hobby | |
 | 테스트 | Vitest (unit) + Playwright (E2E) | 실제 DB 사용 (§4 참조) |
 
@@ -99,7 +99,7 @@ App Router 코드 작성 전, 해당하는 경우 `node_modules/next/dist/docs/0
 
 ## 4. 테스트는 진짜 DB로 (No mocks)
 
-Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 사용." 즉:
+Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 Blob 스토어 사용." 즉:
 
 - DB 클라이언트를 mock하지 마라. 테스트 DB는 `src/lib/db/client.ts`의 `resolveDatabaseUrl()`이 고른다:
   - `TEST_DATABASE_URL`이 있으면 그 Neon 인스턴스를 쓴다 (별도 브랜치여야 함).
@@ -121,8 +121,8 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 �
 | JWT 쿠키: `HttpOnly` + `Secure` + `SameSite=Lax`. 셋 중 하나라도 빠지면 안 됨. | spec §13 |
 | 모든 mutation API 핸들러는 첫 줄에서 `auth()` (Auth.js v5) 호출 후 권한 확인. 클라 UI 숨김은 보조에 불과. | spec §10.1 |
 | 관리자 전용 엔드포인트는 `requireAdmin()` 가드 통과 후에만 본문 실행. | |
-| R2 pre-signed URL TTL: 업로드 **5분**, 조회 **24시간**. 그 이상으로 늘리지 마라. | spec §13 |
-| R2 `original/` 키는 **절대 덮어쓰지 마라.** 편집본은 `edited/` 별도 키로 저장. | spec §3.1 |
+| Blob 서명 URL TTL: 업로드 **5분**, 조회 **24시간**. 그 이상으로 늘리지 마라. 상수는 `src/lib/storage/blob.ts`. | spec §13 |
+| `original/` 키는 **절대 덮어쓰지 마라.** presign 시 `allowOverwrite: false`로 스토어가 강제한다. 편집본은 `edited/` 별도 키. | spec §3.1 |
 | 업로드 파일은 MIME + 매직 바이트 양쪽 검증 (`file-type` 라이브러리). | spec §13 |
 | 초대 토큰은 32-byte url-safe random, 만료 7일, 1회 사용. `used_at != NULL`이면 거부. | spec §10.2 |
 | 영상 길이 상한 기본 5분 (env로 조정 가능). 거대 파일 차단용 디폴트. | spec §13 |
@@ -138,7 +138,7 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 �
 | 사진 업로드 크기 | 25 MB |
 | 영상 업로드 크기 | 100 MB |
 | 영상 길이 | 5 분 |
-| R2 스토리지 경고선 | 8 GB (10 GB가 무료 한도) |
+| Blob 스토리지 경고선 | 0.8 GB (Hobby 무료 한도 약 1 GB) |
 | Vercel Cron | 1개만 (매일 03:00 KST 휴지통 청소) |
 
 **도입 금지** (무료 한도 깨지거나 Vercel serverless에서 안 됨):
@@ -148,7 +148,7 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 �
 - 백그라운드 워커/큐 → Vercel 서버리스 한 함수 호출 안에서 끝낸다.
 - Sentry 등 유료 의존 (MVP 미포함).
 
-업로드는 R2 pre-signed PUT으로 클라가 R2에 직접 → Vercel API 본문 한도 우회.
+업로드는 Blob presigned PUT으로 클라가 스토어에 직접 → Vercel 함수 본문/전송 비용 우회.
 
 ---
 

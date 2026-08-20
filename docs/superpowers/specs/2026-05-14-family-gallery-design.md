@@ -15,7 +15,7 @@
 | 사용 모델 | 멀티유저, 가족 구성원이 각자 계정. 외부 공유 불가 |
 | 기술 스택 | Next.js (App Router) + TypeScript |
 | 데이터베이스 | Neon Postgres (무료 티어) |
-| 객체 스토리지 | Cloudflare R2 (10GB 무료, egress 무료) |
+| 객체 스토리지 | Vercel Blob private store (Hobby 약 1GB 무료) |
 | 인증 | Auth.js (Credentials provider, JWT 쿠키) |
 | 호스팅 | Vercel Hobby (개인용, 무료) |
 | 가입 방식 | 관리자가 발급한 1회용 초대 링크 |
@@ -39,7 +39,7 @@ Vercel (Next.js 서버리스)
    └── Cron Job (1일 1회, 30일 지난 휴지통 청소)
             │
    ┌────────┴────────────┐
-Neon Postgres        Cloudflare R2
+Neon Postgres        Vercel Blob
 - users              - originals/
 - media              - medium/
 - invites            - thumb/
@@ -48,20 +48,20 @@ Neon Postgres        Cloudflare R2
 
 ### 3.1 핵심 아키텍처 결정
 
-- **이미지 변형은 업로드 시점에 만든다.** sharp로 thumb (200px) + medium (1280px) + original을 R2에 한번에 저장. 조회 시 변환 없음. (대안: on-the-fly 리사이즈는 무료 한도가 적어 채택 안 함.)
-- **원본은 절대 덮어쓰지 않는다.** 편집본은 `edited/` 키에 별도 저장하고 DB가 포인터 관리. "원본 복원" = 편집본 R2 객체 삭제 + 포인터 NULL.
+- **이미지 변형은 업로드 시점에 만든다.** sharp로 thumb (200px WebP) + medium (1280px WebP) + original을 Blob에 한번에 저장. 조회 시 변환 없음. (대안: on-the-fly 리사이즈는 무료 한도가 적어 채택 안 함.)
+- **원본은 절대 덮어쓰지 않는다.** 편집본은 `edited/` 키에 별도 저장하고 DB가 포인터 관리. "원본 복원" = 편집본 Blob 객체 삭제 + 포인터 NULL.
 - **영상 썸네일은 클라이언트에서 추출한다.** 업로드 직전 브라우저에서 `<video>` + canvas로 첫 프레임을 JPEG로 만들어 함께 전송. Vercel에서 ffmpeg 안 씀.
-- **모놀리식 Next.js.** 프론트 + API + 인증 같은 코드베이스. R2/Neon만 외부 의존.
+- **모놀리식 Next.js.** 프론트 + API + 인증 같은 코드베이스. Blob/Neon만 외부 의존.
 
-### 3.2 표시 규칙 (어느 R2 키를 보여줄지)
+### 3.2 표시 규칙 (어느 Blob 키를 보여줄지)
 
 | 위치 | 사진 | 영상 |
 |---|---|---|
-| 그리드 카드 | `r2_thumb_key` | `r2_thumb_key` (첫 프레임) |
-| 라이트박스 | `r2_edited_key` 있으면 그것, 없으면 `r2_medium_key` | `r2_original_key` (재생) |
-| 편집 캔버스 진입 | 항상 `r2_original_key` (편집을 깨끗한 원본 위에서 다시 시작) | 진입 불가 |
+| 그리드 카드 | `blob_thumb_key` | `blob_thumb_key` (첫 프레임) |
+| 라이트박스 | `blob_edited_key` 있으면 그것, 없으면 `blob_medium_key` | `blob_original_key` (재생) |
+| 편집 캔버스 진입 | 항상 `blob_original_key` (편집을 깨끗한 원본 위에서 다시 시작) | 진입 불가 |
 
-"원본 복원" 후엔 `r2_edited_key`가 NULL이 되어 자동으로 medium이 표시됨.
+"원본 복원" 후엔 `blob_edited_key`가 NULL이 되어 자동으로 medium이 표시됨.
 
 ## 4. 데이터 모델
 
@@ -101,10 +101,10 @@ Neon Postgres        Cloudflare R2
 | width / height | int | |
 | duration_ms | int NULL | 영상만 |
 | size_bytes | bigint | 원본 크기 |
-| r2_original_key | text | R2 객체 키 |
-| r2_medium_key | text NULL | 사진에만 있음 |
-| r2_thumb_key | text | 사진/영상 모두 |
-| r2_edited_key | text NULL | 편집본이 있을 때만 |
+| blob_original_key | text | Blob pathname |
+| blob_medium_key | text NULL | 사진에만 있음 |
+| blob_thumb_key | text | 사진/영상 모두 |
+| blob_edited_key | text NULL | 편집본이 있을 때만 |
 | short_edge_px | integer NOT NULL | 사진/영상 원본의 짧은 변(px). 그리드 호버 캡션 표시 여부 판정 (≥300이면 캡션 노출). 업로드 시 sharp 메타로 계산. |
 | created_at | timestamptz | |
 | deleted_at | timestamptz NULL INDEX | NULL = 갤러리, NOT NULL = 휴지통 |
@@ -178,7 +178,7 @@ app/
 3. "올리기" 탭:
    - 각 파일에 대해 클라이언트가 `POST /api/media/upload`로 메타 + title 검사 요청 → 서버가 `title_lower` UNIQUE 충돌이면 409 + 제안 3개 응답.
    - 충돌 시 그 카드에 `NameSuggestModal` 표시. 사용자가 1개 선택 후 재시도.
-   - 검사 통과 → 서버가 R2 pre-signed PUT URL 발급 → 클라가 직접 R2로 업로드.
+   - 검사 통과 → 서버가 Blob presigned PUT URL 발급 → 클라가 직접 스토어로 업로드.
    - 업로드 완료 후 클라가 `POST /api/media/upload/complete`로 완료 알림 → 서버가 sharp로 thumb/medium 생성 + DB row 삽입 + audit_log.
 
 ### 7.2 갤러리 보기
@@ -200,16 +200,16 @@ app/
 
 1. 라이트박스 하단 붓 버튼 → 편집 모드 진입.
 2. 3개 탭 사용 (자세한 동작은 §8).
-3. "저장" 탭 → 클라가 캔버스 합성 → JPEG 인코딩 → R2 `edited/`에 업로드 → `PUT /api/media/[id]/edit`로 `r2_edited_key` 갱신 + audit_log.
-4. "원본 복원" 탭 → 확인 다이얼로그 → `POST /api/media/[id]/restore-original` → R2 객체 삭제 + DB 컬럼 NULL.
+3. "저장" 탭 → 클라가 캔버스 합성 → JPEG 인코딩 → Blob `edited/`에 업로드 → `PUT /api/media/[id]/edit`로 `blob_edited_key` 갱신 + audit_log.
+4. "원본 복원" 탭 → 확인 다이얼로그 → `POST /api/media/[id]/restore-original` → Blob 객체 삭제 + DB 컬럼 NULL.
 5. 영상에서는 붓 버튼 비활성.
 
 ### 7.5 삭제 / 휴지통 (admin만)
 
-1. 라이트박스 하단 휴지통 아이콘 → 확인 다이얼로그 ("정말로 삭제 하시겠습니까?" + 취소 / 확인) → `deleted_at = now()`. R2는 그대로.
+1. 라이트박스 하단 휴지통 아이콘 → 확인 다이얼로그 ("정말로 삭제 하시겠습니까?" + 취소 / 확인) → `deleted_at = now()`. Blob 객체는 그대로.
 2. 상단 휴지통 버튼 → `/trash` → 휴지통 미디어 그리드.
 3. 각 카드에서 "복원" → `deleted_at = NULL`.
-4. 상단 "휴지통 비우기" → "DELETE" 타이핑 확인 → 모든 휴지통 미디어의 R2 객체 + DB row 즉시 삭제.
+4. 상단 "휴지통 비우기" → "DELETE" 타이핑 확인 → 모든 휴지통 미디어의 Blob 객체 + DB row 즉시 삭제.
 5. 매일 1회 Vercel Cron → `deleted_at < now() - interval '30 days'`인 모든 미디어 영구 삭제.
 
 ### 7.6 가입 / 로그인
@@ -258,8 +258,8 @@ app/
    b. 원본 이미지 그리기.
    c. 조정 필터 적용 (픽셀 조작).
    d. 그리기 레이어 위에 그리기.
-3. `canvas.toBlob('image/jpeg', 0.92)` → R2 pre-signed PUT URL로 업로드.
-4. `POST /api/media/[id]/edit` → DB `r2_edited_key` 갱신 + audit_log.
+3. `canvas.toBlob('image/jpeg', 0.92)` → Blob presigned PUT URL로 업로드.
+4. `POST /api/media/[id]/edit` → DB `blob_edited_key` 갱신 + audit_log.
 
 ## 9. UI / 디자인 (르네상스 미술관)
 
@@ -315,8 +315,8 @@ app/
 
 ## 12. 운영 / 무료 한도
 
-- R2 사용량은 관리자 페이지에 표시 (Cloudflare API). 8GB 초과시 경고.
-- 업로드 제한: 사진 25MB, 영상 100MB. R2 pre-signed PUT으로 직행 → Vercel API 본문 한도 우회.
+- Blob 사용량은 관리자 페이지에 표시 (Vercel API). 0.8GB 초과시 경고.
+- 업로드 제한: 사진 25MB, 영상 100MB. Blob presigned PUT으로 직행 → Vercel API 본문 한도 우회.
 - Vercel Cron 1개만 사용 (30일 휴지통 청소). 매일 03:00 KST.
 - Sentry 무료 티어는 선택. MVP에는 미포함.
 
@@ -325,7 +325,7 @@ app/
 - 비밀번호: Argon2id.
 - JWT 쿠키: `HttpOnly`, `Secure`, `SameSite=Lax`.
 - 모든 mutation API: CSRF 보호 (Auth.js 기본).
-- R2 pre-signed URL 만료: 업로드 5분, 조회 24시간.
+- Blob 서명 URL 만료: 업로드 5분, 조회 24시간.
 - 파일 검증: MIME + 매직 바이트 양쪽 확인 (`file-type` 라이브러리).
 - 영상 최대 길이 기본값: 5분 (악의적 거대 파일 차단용 디폴트, 환경변수로 조정 가능).
 
@@ -339,14 +339,14 @@ app/
   - 로그인 → 업로드 → 라이트박스 → 편집 → 원본 복원.
   - 초대 발급 → 가입 → 로그인.
   - 멤버가 삭제 버튼 못 보고 API 직접 호출시 403.
-- **E2E 데이터**: 테스트는 별도 Neon 브랜치 + 테스트 R2 버킷 사용.
+- **E2E 데이터**: 테스트는 별도 Neon 브랜치 + 테스트 Blob 스토어 사용.
 
 ## 15. 작업 분해 (출시 순서)
 
 1. 프로젝트 부트스트랩 (Next.js + TS + Tailwind + 디자인 토큰).
 2. Auth.js 로그인 / 미들웨어.
 3. DB 마이그레이션 (drizzle 또는 prisma — drizzle 추천, Neon 친화적).
-4. R2 클라이언트 + pre-signed URL API.
+4. Blob 클라이언트 + 서명 URL API.
 5. 업로드 흐름 (이름 중복 + 제안 + 썸네일 생성).
 6. 그리드 + 라이트박스.
 7. 검색 + 분류 필터.

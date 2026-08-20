@@ -3,7 +3,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
-import { presignGet } from "@/lib/r2/client";
+import { presignGet } from "@/lib/storage/blob";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,11 +23,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (!row) return new NextResponse("Not Found", { status: 404 });
 
-  const displayKey = row.r2EditedKey ?? row.r2MediumKey ?? row.r2OriginalKey;
+  const displayKey = row.blobEditedKey ?? row.blobMediumKey ?? row.blobOriginalKey;
   const [thumbUrl, displayUrl, originalUrl] = await Promise.all([
-    presignGet(row.r2ThumbKey),
+    presignGet(row.blobThumbKey),
     presignGet(displayKey),
-    presignGet(row.r2OriginalKey),
+    presignGet(row.blobOriginalKey),
   ]);
 
   return NextResponse.json({ ...row, thumbUrl, displayUrl, originalUrl });

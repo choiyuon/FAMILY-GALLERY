@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
 import { isTitleTaken, suggestTitles } from "@/lib/media/title";
-import { presignPut } from "@/lib/r2/client";
+import { presignPut } from "@/lib/storage/blob";
 import { randomUUID } from "node:crypto";
 
 const ALLOWED_MIME = new Set([
@@ -61,14 +61,16 @@ export async function POST(req: Request) {
   const ext = mimeType.split("/")[1].replace("quicktime", "mov");
   const mediaId = randomUUID();
   const key = `original/${mediaId}.${ext}`;
-  const uploadUrl = await presignPut(key, mimeType);
+  const uploadUrl = await presignPut(key, mimeType, maxBytes);
 
-  // For videos, also issue a pre-signed PUT for the client-extracted thumbnail
+  // For videos, issue a pre-signed PUT for the client-extracted frame. It lands
+  // on a staging key: /upload/complete re-encodes it to thumb/<id>.webp and
+  // deletes this object, so every thumb/ object in the bucket is WebP.
   let thumbKey: string | undefined;
   let thumbUploadUrl: string | undefined;
   if (!isPhoto) {
-    thumbKey = `thumb/${mediaId}.jpg`;
-    thumbUploadUrl = await presignPut(thumbKey, "image/jpeg");
+    thumbKey = `thumb-src/${mediaId}.jpg`;
+    thumbUploadUrl = await presignPut(thumbKey, "image/jpeg", 5 * 1024 * 1024);
   }
 
   return NextResponse.json({ mediaId, key, uploadUrl, thumbKey, thumbUploadUrl });

@@ -3,7 +3,7 @@ import { and, isNull, lt, eq, desc } from "drizzle-orm";
 import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
-import { presignGet } from "@/lib/r2/client";
+import { presignGet } from "@/lib/storage/blob";
 
 export async function GET(req: Request) {
   try {
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       id: row.id,
       title: row.title,
       kind: row.kind,
-      thumbUrl: await presignGet(row.r2ThumbKey),
+      thumbUrl: await presignGet(row.blobThumbKey),
       width: row.width,
       height: row.height,
       shortEdgePx: row.shortEdgePx,

@@ -8,7 +8,7 @@ async function insertMedia(ownerId: string, title: string) {
   const titleLower = title.toLowerCase();
   await testSql`
     INSERT INTO media (owner_id, title, title_lower, kind, mime_type, width, height,
-                       size_bytes, r2_original_key, r2_thumb_key, short_edge_px)
+                       size_bytes, blob_original_key, blob_thumb_key, short_edge_px)
     VALUES (${ownerId}, ${title}, ${titleLower}, 'photo', 'image/jpeg',
             800, 600, 100000, 'original/test.jpg', 'thumb/test.jpg', 600)
   `;

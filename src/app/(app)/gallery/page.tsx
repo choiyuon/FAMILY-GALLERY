@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
-import { presignGet } from "@/lib/r2/client";
+import { isStorageConfigured, presignGet } from "@/lib/storage/blob";
 import { Topbar } from "@/components/design/topbar";
 import { MediaGrid } from "./media-grid";
 import { Lightbox } from "./lightbox";
@@ -30,7 +30,9 @@ export default async function GalleryPage() {
     { href: "/landing", label: "나가기" },
   ];
 
-  if (!process.env.R2_ACCOUNT_ID) {
+  // No Blob store configured yet: fall back to the design mock so the page
+  // still renders during local setup.
+  if (!isStorageConfigured()) {
     return (
       <div className="min-h-screen flex flex-col bg-[var(--color-bg)]">
         <Topbar navItems={navItems} cta={<SearchBar />} />
@@ -59,7 +61,7 @@ export default async function GalleryPage() {
       id: row.id,
       title: row.title,
       kind: row.kind as "photo" | "video",
-      thumbUrl: await presignGet(row.r2ThumbKey),
+      thumbUrl: await presignGet(row.blobThumbKey),
       width: row.width,
       height: row.height,
       shortEdgePx: row.shortEdgePx,

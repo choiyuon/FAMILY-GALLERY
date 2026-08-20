@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireSession, UnauthorizedError } from "@/lib/auth/guard";
-import { getR2 } from "@/lib/r2/client";
+import {
+  deleteObject,
+  getObjectBuffer,
+  getObjectPrefix,
+  putObject,
+} from "@/lib/storage/blob";
 import { getDb } from "@/lib/db/client";
 import { media } from "@/lib/db/schema";
 import { writeAudit } from "@/lib/audit/log";
 import { isTitleTaken } from "@/lib/media/title";
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import sharp from "sharp";
-
-async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
-  }
-  return Buffer.concat(chunks);
-}
+import {
+  buildImageVariants,
+  buildVideoThumb,
+  mediumKey,
+  thumbKey,
+  VARIANT_CONTENT_TYPE,
+} from "@/lib/media/variants";
 
 export async function POST(req: Request) {
   let session;
@@ -53,12 +55,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "이름 충돌 — 다시 시도해주세요." }, { status: 409 });
   }
 
-  const bucket = process.env.R2_BUCKET_NAME!;
   const isPhoto = mimeType.startsWith("image/");
 
   // Fix 2: [HIGH] Path traversal — derive thumb/medium keys from server-controlled mediaId
-  const r2ThumbKey = `thumb/${mediaId}.jpg`;
-  const r2MediumKey: string | undefined = isPhoto ? `medium/${mediaId}.jpg` : undefined;
+  const blobThumbKey = thumbKey(mediaId);
+  const blobMediumKey: string | undefined = isPhoto ? mediumKey(mediaId) : undefined;
 
   let actualMimeType = mimeType;
   let actualWidth = width;
@@ -69,10 +70,7 @@ export async function POST(req: Request) {
     // Fix 4: [MEDIUM] Server-side sniff MIME for videos — mirrors the photo
     // branch below. Only reads the first few KB (Range GET) since magic bytes
     // for mp4/mov/webm all sit near the start of the file.
-    const head = await getR2().send(
-      new GetObjectCommand({ Bucket: bucket, Key: key, Range: "bytes=0-4099" })
-    );
-    const headBuf = await streamToBuffer(head.Body as unknown as NodeJS.ReadableStream);
+    const headBuf = await getObjectPrefix(key, 4100);
 
     const { fileTypeFromBuffer } = await import("file-type");
     const sniffed = await fileTypeFromBuffer(headBuf);
@@ -81,13 +79,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "지원하지 않는 파일 형식입니다." }, { status: 400 });
     }
     actualMimeType = sniffed.mime;
+
+    // The browser staged a raster frame at thumb-src/<id>.jpg (it cannot encode
+    // a canonical WebP on every platform). Re-encode it here so thumb/ is WebP.
+    const srcKey = `thumb-src/${mediaId}.jpg`;
+    const frameBuf = await getObjectBuffer(srcKey);
+    await putObject(
+      blobThumbKey,
+      await buildVideoThumb(frameBuf),
+      VARIANT_CONTENT_TYPE
+    );
+    await deleteObject(srcKey);
   }
 
   if (isPhoto) {
-    const obj = await getR2().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-    const buf = await streamToBuffer(
-      obj.Body as unknown as NodeJS.ReadableStream
-    );
+    const buf = await getObjectBuffer(key);
 
     // Fix 3: [MEDIUM] Server-side sniff MIME + dimensions for photos
     const { fileTypeFromBuffer } = await import("file-type");
@@ -99,19 +105,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "지원하지 않는 파일 형식입니다." }, { status: 400 });
     }
     actualMimeType = sniffed.mime;
-    const sharpMeta = await sharp(buf).metadata();
-    actualWidth = sharpMeta.width ?? width;
-    actualHeight = sharpMeta.height ?? height;
+
+    const variants = await buildImageVariants(buf);
+    actualWidth = variants.width || width;
+    actualHeight = variants.height || height;
     actualShortEdgePx = Math.min(actualWidth, actualHeight);
 
-    const [thumbBuf, mediumBuf] = await Promise.all([
-      sharp(buf).resize(200, 200, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer(),
-      sharp(buf).resize(1280, 1280, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer(),
-    ]);
-
     await Promise.all([
-      getR2().send(new PutObjectCommand({ Bucket: bucket, Key: r2ThumbKey, Body: thumbBuf, ContentType: "image/jpeg" })),
-      getR2().send(new PutObjectCommand({ Bucket: bucket, Key: r2MediumKey!, Body: mediumBuf, ContentType: "image/jpeg" })),
+      putObject(blobThumbKey, variants.thumb, VARIANT_CONTENT_TYPE),
+      putObject(blobMediumKey!, variants.medium, VARIANT_CONTENT_TYPE),
     ]);
   }
 
@@ -127,9 +129,9 @@ export async function POST(req: Request) {
     height: actualHeight,
     durationMs: durationMs ?? null,
     sizeBytes,
-    r2OriginalKey: key,
-    r2MediumKey: r2MediumKey ?? null,
-    r2ThumbKey,
+    blobOriginalKey: key,
+    blobMediumKey: blobMediumKey ?? null,
+    blobThumbKey,
     shortEdgePx: actualShortEdgePx,
   }).returning({ id: media.id });
 
