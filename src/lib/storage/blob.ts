@@ -1,6 +1,7 @@
 import { del, get, issueSignedToken, list, presignUrl, put } from "@vercel/blob";
 import type { IssuedSignedToken } from "@vercel/blob";
 import { summarizeBlobs, type StorageSummary } from "./usage";
+import type { StoredBlob } from "./orphans";
 
 // Signed-URL lifetimes are a security ceiling from spec §13 — do not raise them.
 export const UPLOAD_URL_TTL_MS = 5 * 60 * 1000;
@@ -167,4 +168,19 @@ export async function getStorageUsage(): Promise<StorageSummary> {
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);
   return summarizeBlobs(blobs);
+}
+
+/** Every object in the store, with the timestamps the orphan sweep needs. */
+export async function listObjects(): Promise<StoredBlob[]> {
+  requireStorage();
+  const objects: StoredBlob[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ cursor, limit: 1000 });
+    objects.push(
+      ...page.blobs.map((b) => ({ pathname: b.pathname, uploadedAt: b.uploadedAt }))
+    );
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return objects;
 }
