@@ -17,7 +17,7 @@
 | Auth (예정) | Auth.js v5 (`next-auth@beta`) Credentials + JWT | Plan 1 Task 7~9 |
 | Password (예정) | Argon2id via `@node-rs/argon2` | bcrypt/scrypt 금지 |
 | 객체 스토리지 | **Vercel Blob** (private store, `@vercel/blob` >= 2.3) | R2에서 교체됨. S3 SDK 쓰지 마라 |
-| 호스팅 | Vercel Hobby | |
+| 호스팅 | Vercel Hobby | 함수 리전 **`sin1`** (Neon `ap-southeast-1`과 동일 리전). `vercel.json`에서 고정 |
 | 테스트 | Vitest (unit) + Playwright (E2E) | 실제 DB 사용 (§4 참조) |
 
 ---
@@ -126,6 +126,7 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 Blob 스토
 | 업로드 파일은 MIME + 매직 바이트 양쪽 검증 (`file-type` 라이브러리). | spec §13 |
 | 초대 토큰은 32-byte url-safe random, 만료 7일, 1회 사용. `used_at != NULL`이면 거부. | spec §10.2 |
 | 영상 길이 상한 기본 5분 (env로 조정 가능). 거대 파일 차단용 디폴트. | spec §13 |
+| `/api/cron/*`는 첫 줄에서 `CRON_SECRET` Bearer 토큰을 확인한 뒤에만 본문 실행. | Vercel Cron |
 
 ---
 
@@ -139,7 +140,7 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 Blob 스토
 | 영상 업로드 크기 | 100 MB |
 | 영상 길이 | 5 분 |
 | Blob 스토리지 경고선 | 0.8 GB (Hobby 무료 한도 약 1 GB) |
-| Vercel Cron | 1개만 (매일 03:00 KST 휴지통 청소) |
+| Vercel Cron | 1개만 (`0 18 * * *` UTC = 매일 03:00 KST). Hobby는 하루 1회가 상한이고 지정 시(時) 안 아무 때나 실행된다. |
 
 **도입 금지** (무료 한도 깨지거나 Vercel serverless에서 안 됨):
 
@@ -168,7 +169,7 @@ Spec §14가 명시: "테스트는 별도 Neon 브랜치 + 테스트 Blob 스토
 - `src/lib/db/schema.ts`가 **단일 소스 오브 트루스**. 이걸 고치고 `npm run db:generate`로 마이그레이션을 만든다.
 - **생성된 마이그레이션 SQL을 손으로 편집하지 마라.** 잘못됐으면 schema.ts를 고치고 다시 generate.
 - 새 컬럼/테이블 추가 시 spec §4를 같은 커밋에서 갱신.
-- 모든 mutation은 `audit_log`에 한 row를 남긴다 (`action`, `actor_id`, `target_media_id`/`target_user_id`, `metadata`). 누락 시 PR 불가.
+- 모든 mutation은 `audit_log`에 한 row를 남긴다 (`action`, `actor_id`, `target_media_id`/`target_user_id`, `metadata`). 누락 시 PR 불가. `actor_id`가 NULL이면 사람이 아니라 시스템(청소 cron)이 한 일이다.
 - 미디어 삭제는 **soft delete만** (`deleted_at`). 진짜 DELETE는 (a) `/trash/empty` 또는 (b) 30일 cron 청소에서만.
 - `media.title_lower` UNIQUE 제약을 우회하는 쿼리 만들지 마라 (이름 전역 유니크가 spec의 핵심 규칙).
 

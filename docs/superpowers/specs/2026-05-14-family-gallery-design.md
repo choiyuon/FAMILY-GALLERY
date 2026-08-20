@@ -15,7 +15,7 @@
 | 사용 모델 | 멀티유저, 가족 구성원이 각자 계정. 외부 공유 불가 |
 | 기술 스택 | Next.js (App Router) + TypeScript |
 | 데이터베이스 | Neon Postgres (무료 티어) |
-| 객체 스토리지 | Vercel Blob private store (Hobby 약 1GB 무료) |
+| 객체 스토리지 | Vercel Blob private store, `sin1` (Hobby 약 1GB 무료) |
 | 인증 | Auth.js (Credentials provider, JWT 쿠키) |
 | 호스팅 | Vercel Hobby (개인용, 무료) |
 | 가입 방식 | 관리자가 발급한 1회용 초대 링크 |

@@ -13,7 +13,7 @@
 
 이 저장소에서는 아래가 **이미 완료**되어 있습니다. 새로 세팅할 일이 없으면 이 절은 건너뛰세요.
 
-- 스토어 생성: `family-gallery-media` (private, iad1) — `store_LCBin8fv0mneIppE`
+- 스토어 생성: `family-gallery-media` (private, **sin1**) — `store_OYNQoRxhWXyu71Ay`
 - 프로젝트 연결: `yuon/family-gallery`
 - 환경변수: `BLOB_READ_WRITE_TOKEN` (Production / Preview / Development + 로컬 `.env.local`)
 
@@ -39,7 +39,7 @@ thumb/<uuid>.webp       200px WebP
 
 ```bash
 # 1) private 스토어 생성 + 프로젝트 연결 + .env.local 갱신까지 한 번에
-vercel blob create-store family-gallery-media --access private --region iad1 --yes
+vercel blob create-store family-gallery-media --access private --region sin1 --yes
 
 # 2) 나중에 토큰만 다시 받고 싶을 때
 vercel env pull .env.local
@@ -47,7 +47,8 @@ vercel env pull .env.local
 
 대시보드로 하려면 **프로젝트 → Storage → Create Database → Blob → Access: Private**.
 
-`--region`은 함수 리전과 맞추세요 (이 프로젝트는 `iad1`). 조회는 CDN을 타므로
+`--region`은 함수·DB 리전과 맞추세요. 이 프로젝트는 **`sin1`(싱가포르)** 로 통일돼 있습니다
+— Neon이 `ap-southeast-1`이고 `vercel.json`의 `regions`도 `sin1`입니다. 조회는 CDN을 타므로
 사용자 위치와는 무관합니다.
 
 ---
