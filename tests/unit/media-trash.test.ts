@@ -3,7 +3,10 @@ import { truncateAll, insertTestUser, testSql } from "../helpers/db";
 import {
   blobKeysOf,
   listExpiredTrash,
+  listTrash,
   purgeMedia,
+  restoreMedia,
+  softDeleteMedia,
   TRASH_RETENTION_MS,
 } from "@/lib/media/trash";
 
@@ -92,7 +95,7 @@ describe("blobKeysOf", () => {
 });
 
 describe("purgeMedia", () => {
-  it("removes the rows and their audit entries", async () => {
+  it("removes the rows but keeps their audit trail", async () => {
     const user = await insertTestUser();
     const doomed = await insertMedia(user.id, "doomed", new Date(Date.now() - 31 * DAY));
     const kept = await insertMedia(user.id, "kept", null);
@@ -105,8 +108,10 @@ describe("purgeMedia", () => {
 
     const rows = await testSql`SELECT id FROM media`;
     expect(rows.map((r) => r.id)).toEqual([kept]);
-    const audits = await testSql`SELECT id FROM audit_log WHERE target_media_id = ${doomed}`;
-    expect(audits).toEqual([]);
+    // audit_log has no foreign key to media on purpose: the history of what was
+    // uploaded and deleted must outlive the media itself (AGENTS.md §8).
+    const audits = await testSql`SELECT action FROM audit_log WHERE target_media_id = ${doomed}`;
+    expect(audits.map((a) => a.action)).toEqual(["upload"]);
   });
 
   it("does nothing when handed an empty list", async () => {
@@ -114,5 +119,82 @@ describe("purgeMedia", () => {
     await insertMedia(user.id, "safe", null);
     await purgeMedia([]);
     expect((await testSql`SELECT id FROM media`).length).toBe(1);
+  });
+});
+
+describe("softDeleteMedia", () => {
+  it("moves media to the trash and records who did it", async () => {
+    const owner = await insertTestUser();
+    const admin = await insertTestUser({ role: "admin" });
+    const id = await insertMedia(owner.id, "doomed", null);
+
+    const row = await softDeleteMedia(id, admin.id);
+
+    expect(row?.id).toBe(id);
+    const [db] = await testSql`SELECT deleted_at, deleted_by FROM media WHERE id = ${id}`;
+    expect(db.deleted_at).not.toBeNull();
+    expect(db.deleted_by).toBe(admin.id);
+  });
+
+  it("returns null for media that is already in the trash", async () => {
+    const user = await insertTestUser();
+    const id = await insertMedia(user.id, "already", new Date());
+
+    expect(await softDeleteMedia(id, user.id)).toBeNull();
+  });
+
+  it("returns null for an unknown id", async () => {
+    await insertTestUser();
+    expect(
+      await softDeleteMedia("11111111-1111-1111-1111-111111111111", null)
+    ).toBeNull();
+  });
+
+  it("leaves the stored objects alone", async () => {
+    const user = await insertTestUser();
+    const id = await insertMedia(user.id, "keeps-blobs", null);
+
+    await softDeleteMedia(id, user.id);
+
+    const [row] = await testSql`SELECT blob_original_key FROM media WHERE id = ${id}`;
+    expect(row.blob_original_key).toBe("original/keeps-blobs.jpeg");
+  });
+});
+
+describe("restoreMedia", () => {
+  it("brings media back out of the trash", async () => {
+    const user = await insertTestUser();
+    const id = await insertMedia(user.id, "back", new Date());
+
+    const row = await restoreMedia(id);
+
+    expect(row?.id).toBe(id);
+    const [db] = await testSql`SELECT deleted_at, deleted_by FROM media WHERE id = ${id}`;
+    expect(db.deleted_at).toBeNull();
+    expect(db.deleted_by).toBeNull();
+  });
+
+  it("returns null for media that was never deleted", async () => {
+    const user = await insertTestUser();
+    const id = await insertMedia(user.id, "live", null);
+    expect(await restoreMedia(id)).toBeNull();
+  });
+});
+
+describe("listTrash", () => {
+  it("returns only trashed media, most recently deleted first", async () => {
+    const user = await insertTestUser();
+    await insertMedia(user.id, "live", null);
+    const older = await insertMedia(user.id, "older", new Date(Date.now() - 2 * DAY));
+    const newer = await insertMedia(user.id, "newer", new Date(Date.now() - 1 * DAY));
+
+    const rows = await listTrash();
+
+    expect(rows.map((r) => r.id)).toEqual([newer, older]);
+  });
+
+  it("is empty when nothing has been deleted", async () => {
+    await insertTestUser();
+    expect(await listTrash()).toEqual([]);
   });
 });
